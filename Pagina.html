@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tienda Online</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f3f3f3; }
+  header { background: #222; color: #fff; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; }
+  nav a { color: #fff; margin-left: 15px; text-decoration: none; }
+  .container { width: 90%; max-width: 1200px; margin: auto; padding: 20px; }
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .product { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.2); cursor: pointer; position: relative; min-height: 280px; display:flex; flex-direction:column; }
+  .product img { width: 100%; border-radius: 8px; max-height:160px; object-fit:cover; }
+  .product h3 { margin:10px 0 5px; font-size:18px; }
+  .product p { margin:4px 0; }
+  .btn { padding: 10px; background: #0066ff; color: #fff; border: none; cursor: pointer; border-radius: 5px; width: 100%; margin-top: 10px; }
+  .btn:disabled { background: #aaa; cursor: not-allowed; }
+  .btn-delete { background: #ff4444; margin-top:5px; }
+  .btn-edit { background: #ffaa00; margin-top:5px; }
+  #admin-panel, #login-form, #register-form, #pagination { display: none; background: #fff; padding: 20px; margin-top: 20px; border-radius: 8px; }
+  input, select, textarea { width: 100%; padding: 10px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing:border-box; }
+  #pagination { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+  .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+  .modal-content { background-color: #fff; margin: 6% auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 520px; position: relative; box-shadow:0 10px 30px rgba(0,0,0,0.3); }
+  .close { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; color: #333; cursor: pointer; }
+  .modal img { width: 100%; border-radius: 8px; margin-bottom: 10px; }
+  #orders-list { max-height: 350px; overflow-y: auto; margin-top: 10px; }
+  .order-item { border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 8px; }
+  .flex-row { display:flex; gap:10px; }
+  .small { font-size:12px; color:#666; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tienda Online</h1>
+  <nav>
+    <a href="#" onclick="showSection('products')" id="nav-products">Productos</a>
+    <a href="#" onclick="showSection('login-form')" id="nav-login">Login</a>
+    <a href="#" onclick="showSection('register-form')" id="nav-register">Registro Admin</a>
+    <a href="#" onclick="showSection('admin-panel')" id="nav-admin" style="display:none">Admin</a>
+    <a href="#" onclick="logout()" id="nav-logout" style="display:none">Logout</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <!-- PRODUCTOS -->
+  <section id="products">
+    <h2>Productos en venta</h2>
+    <div class="product-grid" id="product-grid"></div>
+    <div id="pagination"></div>
+  </section>
+
+  <!-- REGISTRO ADMIN -->
+  <section id="register-form">
+    <h2>Registro de Administrador</h2>
+    <input type="text" id="reg-user" placeholder="Usuario Admin" />
+    <input type="password" id="reg-pass" placeholder="Contraseña" />
+    <input type="text" id="reg-key" placeholder="Clave de Administrador" />
+    <button class="btn" onclick="register()">Registrar Administrador</button>
+  </section>
+
+  <!-- LOGIN -->
+  <section id="login-form">
+    <h2>Login</h2>
+    <input type="text" id="log-user" placeholder="Usuario" />
+    <input type="password" id="log-pass" placeholder="Contraseña" />
+    <select id="log-role">
+      <option value="admin">Admin</option>
+    </select>
+    <button class="btn" onclick="login()">Entrar</button>
+  </section>
+
+  <!-- ADMIN PANEL -->
+  <section id="admin-panel">
+    <h2>Panel Admin</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+      <input type="text" id="p-name" placeholder="Nombre del producto" />
+      <input type="text" id="p-img" placeholder="URL de imagen" />
+      <input type="number" id="p-price" placeholder="Precio" />
+      <input type="number" id="p-stock" placeholder="Stock" />
+    </div>
+    <button class="btn" onclick="addProduct()">Agregar Producto</button>
+
+    <h3 style="margin-top:20px">Órdenes Recibidas</h3>
+    <div id="orders-list"></div>
+  </section>
+
+</div>
+
+<!-- Modal de producto -->
+<div id="product-modal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img id="modal-img" src="" alt="Imagen del producto" />
+    <h3 id="modal-name"></h3>
+    <p id="modal-price"></p>
+    <p id="modal-stock"></p>
+
+    <h4>Comprar Producto</h4>
+    <input type="text" id="buyer-name" placeholder="Nombre" />
+    <input type="text" id="buyer-phone" placeholder="Teléfono" />
+    <textarea id="buyer-address" placeholder="Dirección"></textarea>
+    <button class="btn" onclick="buyProduct()">Comprar</button>
+  </div>
+</div>
+
+<!-- Modal de edición -->
+<div id="edit-modal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <span class="close" onclick="closeEditModal()">&times;</span>
+    <h3>Editar Producto</h3>
+    <input type="text" id="edit-name" placeholder="Nombre" />
+    <input type="text" id="edit-img" placeholder="URL de imagen" />
+    <input type="number" id="edit-price" placeholder="Precio" />
+    <input type="number" id="edit-stock" placeholder="Stock" />
+    <button class="btn" onclick="saveEdit()">Guardar Cambios</button>
+  </div>
+</div>
+
+<script>
+/* Datos persistentes en localStorage */
+let users = JSON.parse(localStorage.getItem("users")) || [];
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let orders = JSON.parse(localStorage.getItem("orders")) || [];
+let currentUser = localStorage.getItem("currentUser") || null;
+
+let currentPage = 1;
+let perPage = 6;
+let currentProductIndex = 0;
+let editProductIndex = null;
+
+/* Mostrar secciones */
+function showSection(id) {
+  document.querySelectorAll('section').forEach(s => s.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+  if(id === 'products') renderProducts();
+  if(id === 'admin-panel') renderOrders();
+}
+
+/* REGISTRO ADMIN */
+function register() {
+  let u = document.getElementById("reg-user").value.trim();
+  let p = document.getElementById("reg-pass").value.trim();
+  let key = document.getElementById("reg-key").value.trim();
+  if(!u || !p || !key) return alert("Completa todos los campos");
+  if(key !== '9016') return alert("Clave incorrecta");
+  if(users.some(x => x.user === u)) return alert("Usuario ya registrado");
+  users.push({ user: u, pass: p, role:'admin' });
+  localStorage.setItem("users", JSON.stringify(users));
+  alert("Registrado correctamente como Administrador");
+  document.getElementById("reg-user").value='';
+  document.getElementById("reg-pass").value='';
+  document.getElementById("reg-key").value='';
+}
+
+/* LOGIN */
+function login() {
+  let u = document.getElementById("log-user").value.trim();
+  let p = document.getElementById("log-pass").value.trim();
+  let found = users.find(x => x.user === u && x.pass === p);
+  if(!found) return alert("Credenciales incorrectas");
+  currentUser = u;
+  localStorage.setItem("currentUser", u);
+  alert("Bienvenido " + u + " (" + found.role + ")");
+  document.getElementById('nav-admin').style.display = (found.role==='admin') ? 'inline' : 'none';
+  document.getElementById('nav-login').style.display='none';
+  document.getElementById('nav-register').style.display='none';
+  document.getElementById('nav-logout').style.display='inline';
+  showSection('products');
+}
+
+/* LOGOUT */
+function logout() {
+  currentUser = null;
+  localStorage.removeItem("currentUser");
+  document.getElementById('nav-admin').style.display='none';
+  document.getElementById('nav-login').style.display='inline';
+  document.getElementById('nav-register').style.display='inline';
+  document.getElementById('nav-logout').style.display='none';
+  showSection('products');
+}
+
+/* ADMIN - AGREGAR PRODUCTO */
+function addProduct() {
+  let name = document.getElementById("p-name").value.trim();
+  let img = document.getElementById("p-img").value.trim();
+  let price = document.getElementById("p-price").value;
+  let stock = document.getElementById("p-stock").value;
+  if(!name || !img || !price || !stock) return alert("Completa todos los campos");
+  products.push({ name,img,price,stock });
+  localStorage.setItem("products", JSON.stringify(products));
+  alert("Producto agregado");
+  document.getElementById("p-name").value='';
+  document.getElementById("p-img").value='';
+  document.getElementById("p-price").value='';
+  document.getElementById("p-stock").value='';
+  renderProducts();
+}
+
+/* ELIMINAR PRODUCTO */
+function deleteProduct(i) {
+  if(!currentUser) return alert("Solo administradores pueden eliminar productos");
+  let user = users.find(u => u.user === currentUser);
+  if(user.role !== 'admin') return alert("Solo administradores pueden eliminar productos");
+  if(!confirm("¿Eliminar este producto?")) return;
+  products.splice(i,1);
+  localStorage.setItem("products", JSON.stringify(products));
+  renderProducts();
+}
+
+/* EDITAR PRODUCTO */
+function editProduct(i){
+  editProductIndex = i;
+  let p = products[i];
+  document.getElementById("edit-name").value = p.name;
+  document.getElementById("edit-img").value = p.img;
+  document.getElementById("edit-price").value = p.price;
+  document.getElementById("edit-stock").value = p.stock;
+  document.getElementById("edit-modal").style.display="block";
+}
+
+function saveEdit(){
+  if(editProductIndex===null) return;
+  let name = document.getElementById("edit-name").value.trim();
+  let img = document.getElementById("edit-img").value.trim();
+  let price = document.getElementById("edit-price").value;
+  let stock = document.getElementById("edit-stock").value;
+  if(!name||!img||!price||!stock) return alert("Completa todos los campos");
+  products[editProductIndex] = { name,img,price,stock };
+  localStorage.setItem("products", JSON.stringify(products));
+  alert("Producto actualizado");
+  closeEditModal();
+  renderProducts();
+}
+
+function closeEditModal(){ document.getElementById("edit-modal").style.display="none"; editProductIndex=null; }
+
+/* RENDER PRODUCTOS */
+function renderProducts() {
+  let grid = document.getElementById("product-grid");
+  grid.innerHTML = "";
+  let start = (currentPage-1)*perPage;
+  let end = start + perPage;
+  let pageProducts = products.slice(start, end);
+  pageProducts.forEach((p,i)=>{
+    let adminBtn="";
+    let user = currentUser ? users.find(u => u.user===currentUser):null;
+    if(user && user.role==='admin'){
+      adminBtn=`
+        <div style="margin-top:auto">
+          <button class="btn btn-edit" onclick="editProduct(${start+i});event.stopPropagation();">Editar</button>
+          <button class="btn btn-delete" onclick="deleteProduct(${start+i});event.stopPropagation();">Eliminar</button>
+        </div>`;
+    }
+    grid.innerHTML += `
+      <div class="product" onclick="openModal(${start+i})">
+        <img src="${p.img}" alt="${p.name}" />
+        <h3>${p.name}</h3>
+        <p>$${p.price}</p>
+        <p>Stock: ${p.stock}</p>
+        ${adminBtn}
+      </div>
+    `;
+  });
+  renderPagination();
+}
+
+/* PAGINACIÓN */
+function renderPagination() {
+  let totalPages = Math.max(1, Math.ceil(products.length/perPage));
+  let pagination = document.getElementById("pagination");
+  pagination.innerHTML="";
+  for(let i=1;i<=totalPages;i++){
+    let btn=document.createElement("button");
+    btn.textContent=i;
+    btn.className="btn";
+    btn.style.width = '40px';
+    btn.onclick=()=>{currentPage=i; renderProducts();};
+    if(i===currentPage) btn.style.background="#0044aa";
+    pagination.appendChild(btn);
+  }
+}
+
+/* MODAL COMPRA */
+let modal=document.getElementById("product-modal");
+function openModal(i){
+  let p=products[i];
+  currentProductIndex=i;
+  document.getElementById("modal-img").src=p.img;
+  document.getElementById("modal-name").textContent=p.name;
+  document.getElementById("modal-price").textContent=`$${p.price}`;
+  document.getElementById("modal-stock").textContent=`Stock: ${p.stock}`;
+  document.getElementById("buyer-name").value='';
+  document.getElementById("buyer-phone").value='';
+  document.getElementById("buyer-address").value='';
+  modal.style.display="block";
+}
+function closeModal(){ modal.style.display="none"; }
+
+/* COMPRA → ENVÍA WHATSAPP */
+function buyProduct(){
+  let name = document.getElementById("buyer-name").value.trim();
+  let phone = document.getElementById("buyer-phone").value.trim();
+  let address = document.getElementById("buyer-address").value.trim();
+  if(!name || !phone || !address) return alert("Completa todos los campos de compra");
+
+  let product = products[currentProductIndex];
+  if(Number(product.stock) <=0) return alert("Producto agotado");
+
+  orders.push({ product:product.name, price:product.price, name, phone, address, createdAt: new Date().toISOString() });
+  localStorage.setItem("orders", JSON.stringify(orders));
+
+  product.stock = String(Number(product.stock) - 1);
+  localStorage.setItem("products", JSON.stringify(products));
+
+  let mensaje =
+    "Nuevo pedido:%0A" +
+    "Cliente: " + encodeURIComponent(name) + "%0A" +
+    "Teléfono: " + encodeURIComponent(phone) + "%0A" +
+    "Dirección: " + encodeURIComponent(address) + "%0A" +
+    "Producto: " + encodeURIComponent(product.name) + "%0A" +
+    "Precio: $" + encodeURIComponent(product.price);
+
+  let numero = "573106459339";
+  let url = "https://wa.me/" + numero + "?text=" + mensaje;
+
+  window.open(url, "_blank");
+
+  alert("Compra realizada con éxito. Te contactaremos por WhatsApp.");
+  closeModal();
+  renderProducts();
+}
+
+/* RENDER ÓRDENES */
+function renderOrders(){
+  let ordersDiv=document.getElementById("orders-list");
+  ordersDiv.innerHTML="";
+  if(orders.length===0){ ordersDiv.innerHTML = "<p class='small'>No hay órdenes recibidas.</p>"; return; }
+  orders.forEach((o,i)=>{
+    ordersDiv.innerHTML+=`
+      <div class="order-item">
+        <p><strong>${o.product}</strong> - $${o.price}</p>
+        <p>Nombre: ${o.name} | Tel: ${o.phone}</p>
+        <p class="small">Dirección: ${o.address}</p>
+        <div class="flex-row" style="margin-top:8px">
+          <button class="btn" onclick="generateInvoice(${i})">Vender / Generar Factura</button>
+          <button class="btn btn-delete" style="width:auto" onclick="removeOrder(${i})">Eliminar</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* ELIMINAR ORDEN */
+function removeOrder(i){
+  if(!confirm("¿Eliminar esta orden?")) return;
+  orders.splice(i,1);
+  localStorage.setItem("orders", JSON.stringify(orders));
+  renderOrders();
+  alert("Orden eliminada");
+}
+
+/* FACTURA PROFORMA */
+function generateInvoice(index){
+  let o = orders[index];
+  let invoiceNumber = Math.floor(1000 + Math.random() * 9000);
+  let fecha = new Date().toLocaleString();
+
+  let content = `
+  <!doctype html>
+  <html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Factura Proforma #${invoiceNumber}</title>
+    <style>
+      body { font-family: 'Arial', sans-serif; margin: 20px; color:#222; }
+      .wrap { max-width:800px; margin:0 auto; border:1px solid #e2e2e2; padding:26px; background:#fff; }
+      .top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+      .logo { font-size:22px; font-weight:700; color:#0066cc; }
+      .company { text-align:right; font-size:13px; color:#555; }
+      .title { text-align:center; margin:18px 0; font-size:20px; font-weight:700; color:#333; }
+      .section { margin-bottom:18px; }
+      .section h4 { margin:0 0 8px 0; font-size:14px; color:#444; }
+      .client { font-size:13px; line-height:1.4; color:#333; }
+      table { width:100%; border-collapse:collapse; margin-top:12px; }
+      table th, table td { border:1px solid #ddd; padding:10px; font-size:14px; }
+      table th { background:#f7f7f7; text-align:left; }
+      .right { text-align:right; }
+      .total-row td { border:none; padding:6px 10px; }
+      .total-label { text-align:right; font-weight:700; font-size:15px; }
+      .total-value { text-align:right; font-weight:700; font-size:15px; width:160px; }
+      .footer { margin-top:20px; font-size:12px; color:#666; text-align:center; }
+      @media print {
+        body { background:#fff; }
+        .wrap { box-shadow:none; border:none; margin:0; width:100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="logo">
+          Tienda Online
+        </div>
+        <div class="company">
+          Dirección: Calle Ejemplo 123<br>
+          Tel: +57 300 0000000<br>
+          NIT: 900000000-0
+        </div>
+      </div>
+
+      <div class="title">FACTURA PROFORMA</div>
+
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <h4>Cliente</h4>
+            <div class="client">
+              <strong>${escapeHtml(o.name)}</strong><br>
+              Tel: ${escapeHtml(o.phone)}<br>
+              Dirección: ${escapeHtml(o.address)}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <h4>Detalles</h4>
+            <div class="client">
+              Factura #: <strong>${invoiceNumber}</strong><br>
+              Fecha: <strong>${fecha}</strong><br>
+              Estado: <strong>Proforma</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h4>Detalle de la Compra</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Precio unitario</th>
+              <th style="width:90px">Cantidad</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${escapeHtml(o.product)}</td>
+              <td class="right">$${Number(o.price).toFixed(2)}</td>
+              <td class="right">1</td>
+              <td class="right">$${Number(o.price).toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="margin-top:8px;">
+          <tbody>
+            <tr class="total-row">
+              <td colspan="3" class="total-label">Total</td>
+              <td class="total-value">$${Number(o.price).toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        Gracias por su compra. Este documento es una factura proforma y no constituye documento fiscal definitivo.
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+
+  let invoiceWindow = window.open('', '_blank', 'width=900,height=700');
+  invoiceWindow.document.open();
+  invoiceWindow.document.write(content);
+  invoiceWindow.document.close();
+
+  invoiceWindow.onload = function(){
+    invoiceWindow.focus();
+    invoiceWindow.print();
+  };
+
+  setTimeout(() => {
+    if(confirm("¿Marcar como vendida y eliminar la orden?")){
+      orders.splice(index,1);
+      localStorage.setItem("orders", JSON.stringify(orders));
+      renderOrders();
+      alert("Orden marcada como vendida");
+    }
+  }, 500);
+}
+
+/* Escape texto */
+function escapeHtml(text){
+  if(!text && text !== 0) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ONLOAD */
+window.onload=()=>{
+  renderProducts();
+  if(currentUser){
+    let user=users.find(u=>u.user===currentUser);
+    document.getElementById('nav-admin').style.display=(user && user.role==='admin')?'inline':'none';
+    document.getElementById('nav-login').style.display='none';
+    document.getElementById('nav-register').style.display='none';
+    document.getElementById('nav-logout').style.display='inline';
+  } else {
+    showSection('products');
+  }
+};
+</script>
+</body>
+</html>
